@@ -1,3 +1,5 @@
-﻿// See https://aka.ms/new-console-template for more information
+﻿using Hometask_1___.NET_Basics___Internship.Logic;
+using Hometask_1___.NET_Basics___Internship.Logic.Interfaces;
 
-Console.WriteLine("Hello, World!");
+IMenu menu = new ConsoleMenu();
+menu.Show();

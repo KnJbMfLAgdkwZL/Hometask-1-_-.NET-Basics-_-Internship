@@ -6,7 +6,7 @@ public class ConsoleMenu : IMenu
 {
     private string? MenuOptions()
     {
-        Console.Clear();
+        //Console.Clear();
         Console.WriteLine("1. Start");
         Console.WriteLine("2. Reset");
         Console.WriteLine("3. Stop");
@@ -42,7 +42,6 @@ public class ConsoleMenu : IMenu
                 break;
             case "5":
                 Console.WriteLine("Exit");
-                Console.ReadLine();
                 return false;
         }
 
@@ -52,6 +51,8 @@ public class ConsoleMenu : IMenu
     private void CommandStart()
     {
         Console.WriteLine("CommandStart");
+        var etlService = new CsvEtlService();
+        etlService.Start();
     }
 
     private void CommandReset()

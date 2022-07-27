@@ -40,7 +40,7 @@ public class CsvEtlService : IEtlService
         return true;
     }
 
-    public async Task Start()
+    public async Task Start(CancellationToken cancelToken)
     {
         if (GetConfig())
         {
@@ -48,11 +48,16 @@ public class CsvEtlService : IEtlService
 
             while (await timer.WaitForNextTickAsync())
             {
+                if (cancelToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
                 var files = Directory.GetFiles(_inputFolder)
                     .Where(s => s.ToLower().EndsWith(".csv") || s.ToLower().EndsWith(".txt"))
                     .Where(file => !_processingFiles.Contains(file)).ToList();
 
-                foreach (var file in files)
+                foreach (var file in files.Where(_ => !cancelToken.IsCancellationRequested))
                 {
                     Parse(file);
                 }

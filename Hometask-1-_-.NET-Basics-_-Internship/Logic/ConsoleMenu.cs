@@ -4,6 +4,8 @@ namespace Hometask_1___.NET_Basics___Internship.Logic;
 
 public class ConsoleMenu : IMenu
 {
+    private CancellationTokenSource? _cancellationTokenSourceCsvEtlService = null;
+
     private string? MenuOptions()
     {
         //Console.Clear();
@@ -41,6 +43,7 @@ public class ConsoleMenu : IMenu
                 CommandShowMetaLog();
                 break;
             case "5":
+                CommandStop();
                 Console.WriteLine("Exit");
                 return false;
         }
@@ -48,21 +51,31 @@ public class ConsoleMenu : IMenu
         return true;
     }
 
+
     private void CommandStart()
     {
         Console.WriteLine("CommandStart");
-        var etlService = new CsvEtlService();
-        etlService.Start();
+
+        _cancellationTokenSourceCsvEtlService = new CancellationTokenSource();
+        var token = _cancellationTokenSourceCsvEtlService.Token;
+
+        IEtlService etlService = new CsvEtlService();
+        etlService.Start(token);
     }
 
     private void CommandReset()
     {
         Console.WriteLine("CommandReset");
+        _cancellationTokenSourceCsvEtlService?.Cancel();
+        _cancellationTokenSourceCsvEtlService = null;
+        CommandStart();
     }
 
     private void CommandStop()
     {
         Console.WriteLine("CommandStop");
+        _cancellationTokenSourceCsvEtlService?.Cancel();
+        _cancellationTokenSourceCsvEtlService = null;
     }
 
     private void CommandShowMetaLog()

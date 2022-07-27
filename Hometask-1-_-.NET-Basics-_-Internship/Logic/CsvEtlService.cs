@@ -10,9 +10,65 @@ namespace Hometask_1___.NET_Basics___Internship.Logic;
 public class CsvEtlService : IEtlService
 {
     private readonly List<string> _processingFiles = new();
-
     private string _inputFolder = "";
     private string _outputFolder = "";
+
+    private List<string> _errorLog = new();
+    private long _parsedFiles = 0;
+    private long _parsedLines = 0;
+    private long _foundErrors = 0;
+    private bool _midnightErrorLog = false;
+
+    private void ResertError()
+    {
+        _errorLog = new List<string>();
+        _parsedFiles = 0;
+        _parsedLines = 0;
+        _foundErrors = 0;
+        _midnightErrorLog = false;
+    }
+
+    void SaveErrors()
+    {
+        var date = DateTime.Now;
+        if (date.Hour == 23 && date.Minute == 59)
+        {
+            if (!_midnightErrorLog)
+            {
+                var dateShor = DateTime.Now.ToShortDateString();
+                var dirOut = $"{_outputFolder}/{dateShor}";
+                if (!Directory.Exists(dirOut))
+                {
+                    Directory.CreateDirectory(dirOut);
+                }
+
+                var settings = new JsonSerializerSettings()
+                {
+                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+                    Error = (sender, args) => { args.ErrorContext.Handled = true; },
+                };
+
+                var dyn = new
+                {
+                    parsed_files = _parsedFiles,
+                    parsed_lines = _parsedLines,
+                    foundErrors = _foundErrors,
+                    invalid_files = JsonConvert.SerializeObject(_errorLog, Formatting.Indented, settings)
+                };
+
+                var logJson = JsonConvert.SerializeObject(dyn, Formatting.Indented, settings);
+
+                var outputPath = $"{dirOut}/meta.log";
+                File.WriteAllText(outputPath, logJson);
+
+                _midnightErrorLog = true;
+            }
+        }
+        else
+        {
+            _midnightErrorLog = false;
+        }
+    }
 
     private bool GetConfig()
     {
@@ -33,6 +89,11 @@ public class CsvEtlService : IEtlService
         }
         catch (Exception e)
         {
+            var errorStr = $"{DateTime.Now}: No config file";
+            _errorLog.Add(errorStr);
+            _errorLog.Add(e.ToString());
+
+            Console.WriteLine(errorStr);
             Console.WriteLine(e);
             return false;
         }
@@ -40,8 +101,11 @@ public class CsvEtlService : IEtlService
         return true;
     }
 
+
     public async Task Start(CancellationToken cancelToken)
     {
+        ResertError();
+
         if (GetConfig())
         {
             var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
@@ -67,15 +131,28 @@ public class CsvEtlService : IEtlService
 
     private void Parse(string file)
     {
-        _processingFiles.Add(file);
+        try
+        {
+            _processingFiles.Add(file);
+            var json = ReadAndTransform(file);
+            Save(json, file);
+        }
+        catch (Exception e)
+        {
+            var errorStr = $"{DateTime.Now}: Error parce {file}";
+            _errorLog.Add(errorStr);
+            _errorLog.Add(e.ToString());
+            _foundErrors++;
 
-        var json = ReadAndTransform(file);
-        Save(json, file);
+            Console.WriteLine(errorStr);
+            Console.WriteLine(e);
+        }
 
+        _parsedFiles++;
         _processingFiles.Remove(file);
     }
 
-    private static string ReadAndTransform(string file)
+    private string ReadAndTransform(string file)
     {
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
@@ -84,12 +161,14 @@ public class CsvEtlService : IEtlService
         };
         using var reader = new StreamReader(file);
         using var csv = new CsvReader(reader, config);
-        var rows = csv.GetRecords<dynamic>();
+        var rows = csv.GetRecords<dynamic>().ToList();
+
+        _parsedLines += rows.Count;
 
         return Transform(rows);
     }
 
-    private static string Transform(IEnumerable<dynamic> rows)
+    private string Transform(IEnumerable<dynamic> rows)
     {
         var settings = new JsonSerializerSettings()
         {
@@ -99,7 +178,7 @@ public class CsvEtlService : IEtlService
         return JsonConvert.SerializeObject(rows, Formatting.Indented, settings);
     }
 
-    private static string RandomString(int length)
+    private string RandomString(int length)
     {
         var random = new Random();
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -109,8 +188,8 @@ public class CsvEtlService : IEtlService
 
     private void Save(string json, string file)
     {
-        var date = DateTime.Now.ToShortDateString();
-        var dirOut = $"{_outputFolder}/{date}";
+        var dateShor = DateTime.Now.ToShortDateString();
+        var dirOut = $"{_outputFolder}/{dateShor}";
         if (!Directory.Exists(dirOut))
         {
             Directory.CreateDirectory(dirOut);
